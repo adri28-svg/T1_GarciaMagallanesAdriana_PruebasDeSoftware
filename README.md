@@ -1,5 +1,5 @@
 ## Autor
-Adriana García Magallanes
+Adriana Betsabe García Magallanes
 
 # T1_GarciaMagallanesAdriana_PruebasDeSoftware
 ExamenT1_PruebasDeSoftware
