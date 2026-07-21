@@ -36,4 +36,16 @@ public class Cita {
 
 	@Enumerated(EnumType.STRING)
 	private EstadoCita estado;
+
+    public edu.pe.cibertec.taller.modelo.PenalidadCita getPenalidad() {
+    }
+
+	public String getNotificacion() {
+	}
+
+	public void setIdMecanico(long l) {
+	}
+
+	public int getDuracion() {
+	}
 }

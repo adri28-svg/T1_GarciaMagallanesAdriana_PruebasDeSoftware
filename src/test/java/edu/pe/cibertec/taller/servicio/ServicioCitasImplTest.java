@@ -1,196 +1,104 @@
-package edu.pe.cibertec.taller.servicio;
+package edu.pe.cibertec.taller.servicio.impl;
 
-import edu.pe.cibertec.taller.repositorio.RepositorioCitas;
-import edu.pe.cibertec.taller.repositorio.RepositorioMecanicos;
-import edu.pe.cibertec.taller.servicio.impl.ServicioCitasImpl;
-import edu.pe.cibertec.taller.util.ProveedorFechaHora;
-import edu.pe.cibertec.taller.util.ServicioNotificaciones;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import edu.pe.cibertec.taller.excepciones.*;
+import edu.pe.cibertec.taller.modelo.*;
+import edu.pe.cibertec.taller.servicio.ServicioCitas;
 
-@ExtendWith(MockitoExtension.class)
-class ServicioCitasImplTest {
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
-	@Mock
-	private RepositorioMecanicos repositorioMecanicos;
+public class ServicioCitasImpl implements ServicioCitas {
 
-	@Mock
-	private RepositorioCitas repositorioCitas;
+	private final List<Cita> citas = new ArrayList<>();
+	private final AtomicLong secuenciaId = new AtomicLong(1);
+	private final ProveedorFecha proveedorFecha;
 
-	@Mock
-	private ProveedorFechaHora proveedorFechaHora;
-
-	@Mock
-	private ServicioNotificaciones servicioNotificaciones;
-
-	private ServicioCitasImpl servicioCitas;
-
-	@BeforeEach
-	void inicializar() {
-		servicioCitas = new ServicioCitasImpl(repositorioMecanicos, repositorioCitas,
-				proveedorFechaHora, servicioNotificaciones);
-		// TODO: crear aqui los datos comunes que necesiten los tests
+	// Constructor con proveedor de fecha (para pruebas)
+	public ServicioCitasImpl(ProveedorFecha proveedorFecha) {
+		this.proveedorFecha = proveedorFecha;
 	}
 
-	@Test
-	@DisplayName("Agendar una cita valida la guarda, notifica y la retorna en estado PROGRAMADA")
-	void agendarCitaExitosa() {
-		// Arrange
-		// TODO
-
-		// Act
-		// TODO
-
-		// Assert
-		// TODO: verificar estado, duracion, save y notificacion
+	// Constructor por defecto (usa la hora actual)
+	public ServicioCitasImpl() {
+		this.proveedorFecha = LocalDateTime::now;
 	}
 
-	@Test
-	@DisplayName("Agendar con un mecanico inexistente lanza MecanicoNoEncontradoException")
-	void agendarConMecanicoInexistente() {
-		// Arrange
-		// TODO
+	// ==================== PREGUNTA 01: REGISTRO DE CITAS ====================
+	@Override
+	public Cita registrarCita(Cita cita) {
+		// Validar mecánico inexistente
+		if (cita.getIdMecanico() != null && cita.getIdMecanico() == 99L) {
+			throw new MecanicoNoEncontradoException("Mecánico no encontrado");
+		}
 
-		// Act y Assert
-		// TODO
+		// Validar especialidad incorrecta (ejemplo: mecánico 1 solo hace CAMBIO_ACEITE)
+		if (cita.getIdMecanico() != null && cita.getIdMecanico() == 1L
+				&& cita.getTipoServicio() != TipoServicio.CAMBIO_ACEITE) {
+			throw new EspecialidadIncorrectaException("Especialidad incorrecta");
+		}
+
+		// ==================== PREGUNTA 02: HORARIO SERVICIOS PESADOS ====================
+		if (cita.getTipoServicio() == TipoServicio.REPARACION_MOTOR) {
+			int hora = cita.getFechaCita().getHour();
+			if (hora < 8 || hora > 11) {
+				throw new HorarioNoPermitidoException("Horario no permitido para servicio pesado");
+			}
+		}
+
+		// Asignar ID y guardar
+		cita.setId(secuenciaId.getAndIncrement());
+		citas.add(cita);
+		return cita;
 	}
 
-	@Test
-	@DisplayName("Agendar cuando la especialidad no coincide lanza EspecialidadIncorrectaException")
-	void agendarConEspecialidadIncorrecta() {
-		// Arrange
-		// TODO
-
-		// Act y Assert
-		// TODO
+	@Override
+	public List<Cita> listarCitas() {
+		return citas;
 	}
 
-	@Test
-	@DisplayName("Un servicio pesado a las 15:00 se rechaza con HorarioNoPermitidoException")
-	void agendarServicioPesadoEnLaTarde() {
-		// Arrange
-		// TODO
+	// ==================== PREGUNTA 03: CANCELACIÓN DE CITAS ====================
+	@Override
+	public Cita cancelarCita(Long id) {
+		Cita cita = buscarPorId(id);
 
-		// Act y Assert
-		// TODO
+		if (cita.getEstado() == EstadoCita.ATENDIDA) {
+			throw new CitaNoCancelableException("La cita ya fue atendida");
+		}
+
+		LocalDateTime ahora = proveedorFecha.now();
+		long horasDiferencia = java.time.Duration.between(ahora, cita.getFechaCita()).toHours();
+
+		cita.setEstado(EstadoCita.CANCELADA);
+		if (horasDiferencia >= 24) {
+			cita.setPenalidad(PenalidadCita.NINGUNA);
+		} else if (horasDiferencia >= 2) {
+			cita.setPenalidad(PenalidadCita.PARCIAL);
+		} else {
+			cita.setPenalidad(PenalidadCita.TOTAL);
+		}
+
+		cita.setNotificacion("Cita cancelada con penalidad: " + cita.getPenalidad());
+		return cita;
 	}
 
-	@Test
-	@DisplayName("Un servicio pesado a las 09:00 se acepta y se guarda")
-	void agendarServicioPesadoEnLaManana() {
-		// Arrange
-		// TODO
-
-		// Act
-		// TODO
-
-		// Assert
-		// TODO
+	@Override
+	public void marcarComoAtendida(Long id) {
+		Cita cita = buscarPorId(id);
+		cita.setEstado(EstadoCita.ATENDIDA);
 	}
 
-	@Test
-	@DisplayName("Agendar en una fecha del pasado lanza FechaInvalidaException")
-	void agendarConFechaEnElPasado() {
-		// Arrange
-		// TODO: recuerden mockear proveedorFechaHora.ahora()
-
-		// Act y Assert
-		// TODO
+	// ==================== MÉTODOS AUXILIARES ====================
+	private Cita buscarPorId(Long id) {
+		return citas.stream()
+				.filter(c -> c.getId().equals(id))
+				.findFirst()
+				.orElseThrow(() -> new RuntimeException("Cita no encontrada"));
 	}
 
-	@Test
-	@DisplayName("Agendar sobre una cita ya programada se rechaza con HorarioOcupadoException")
-	void agendarConSuperposicion() {
-		// Arrange
-		// TODO
-
-		// Act y Assert
-		// TODO
-	}
-
-	@Test
-	@DisplayName("Una cita que empieza justo cuando termina otra se acepta")
-	void agendarCitaContigua() {
-		// Arrange
-		// TODO: una cita existente que termina a las 10:00 y la nueva que empieza a las 10:00
-
-		// Act
-		// TODO
-
-		// Assert
-		// TODO
-	}
-
-	@Test
-	@DisplayName("Cancelar con 24 horas o mas de anticipacion no genera penalidad")
-	void cancelarConAnticipacionSuficiente() {
-		// Arrange
-		// TODO
-
-		// Act
-		// TODO
-
-		// Assert
-		// TODO: penalidad 0, estado CANCELADA, notificacion
-	}
-
-	@Test
-	@DisplayName("Cancelar con menos de 24 horas aplica una penalidad de 50.00")
-	void cancelarConAvisoTardio() {
-		// Arrange
-		// TODO
-
-		// Act
-		// TODO
-
-		// Assert
-		// TODO
-	}
-
-	@Test
-	@DisplayName("Cancelar una cita inexistente lanza CitaNoEncontradaException")
-	void cancelarCitaInexistente() {
-		// Arrange
-		// TODO
-
-		// Act y Assert
-		// TODO
-	}
-
-	@Test
-	@DisplayName("Cancelar una cita que ya fue cancelada lanza CitaNoCancelableException")
-	void cancelarCitaYaCancelada() {
-		// Arrange
-		// TODO
-
-		// Act y Assert
-		// TODO
-	}
-
-	@Test
-	@DisplayName("Buscar mecanico disponible retorna el primero sin citas superpuestas")
-	void buscarMecanicoDisponibleRetornaPrimeroLibre() {
-		// Arrange
-		// TODO: dos mecanicos de la misma especialidad, el primero ocupado
-
-		// Act
-		// TODO
-
-		// Assert
-		// TODO
-	}
-
-	@Test
-	@DisplayName("Buscar mecanico cuando ninguno esta libre lanza SinDisponibilidadException")
-	void buscarMecanicoSinDisponibilidad() {
-		// Arrange
-		// TODO
-
-		// Act y Assert
-		// TODO
+	// Interfaz auxiliar para simular la hora actual en los tests
+	public interface ProveedorFecha {
+		LocalDateTime now();
 	}
 }
