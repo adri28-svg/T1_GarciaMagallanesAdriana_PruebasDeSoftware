@@ -1,13 +1,16 @@
+### Archivos de ayuda y compilación ###
 HELP.md
 target/
 
-### Credenciales ###
+### Credenciales y configuración ###
 .env
+
+### Maven Wrapper ###
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-### STS ###
+### Spring Tool Suite (STS) ###
 .apt_generated
 .classpath
 .factorypath
@@ -32,5 +35,6 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### VS Code ###
+### Visual Studio Code ###
 .vscode/
+
