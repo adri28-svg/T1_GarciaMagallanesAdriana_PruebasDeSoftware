@@ -22,11 +22,3 @@ Las credenciales se leen desde un archivo `.env` con [dotenv-java](https://githu
 
 ```bash
 cp .env.example .env
-
-
-http://localhost:8080/swagger-ui.html
-```
-=======
-# T1_GarciaMagallanesAdriana_PruebasDeSoftware
-ExamenT1_PruebasDeSotfware
->>>>>>> 416bc19514c3ddc8cd70fc3f8477fc29944653f1
